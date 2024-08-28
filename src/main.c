@@ -1,7 +1,6 @@
 #include <uefi.h>
 
-efi_physical_address_t fb_addr = 0;
-uint32_t ppsl = 0;
+uint64_t fb_addr = 0; uint32_t ppsl = 0;
 
 void putpixel(int x, int y, uint32_t pixel){
   *((uint32_t*)(fb_addr + 4 * ppsl * y + 4 * x)) = pixel;
@@ -18,17 +17,16 @@ int main(int argc, char **argv){
   efi_guid_t gopGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
   efi_gop_t *gop = NULL;
   efi_gop_mode_info_t *info = NULL;
-  uintn_t isiz = sizeof(efi_gop_mode_info_t), currentMode, i;
+  uintn_t size_mode = sizeof(efi_gop_mode_info_t), currentMode, i;
 
   status = BS->LocateProtocol(&gopGuid, NULL, (void**)&gop);
   if(!EFI_ERROR(status) && gop) {
     /* we got the interface, get current mode */
-    status = gop->QueryMode(gop, gop->Mode ? gop->Mode->Mode : 0, &isiz, &info);
+    status = gop->QueryMode(gop, gop->Mode ? gop->Mode->Mode : 0, &size_mode, &info);
     if(status == EFI_NOT_STARTED || !gop->Mode) {
       status = gop->SetMode(gop, 0);
-      ST->ConOut->Reset(ST->ConOut, 0);
-      ST->StdErr->Reset(ST->StdErr, 0);
     }
+
     if(EFI_ERROR(status)) {
       printf("can't set video mode!\n");
       for(;;);
@@ -36,24 +34,36 @@ int main(int argc, char **argv){
 
     currentMode = gop->Mode->Mode;
 
-    // Set mode 10, 1280x760
-    gop->SetMode(gop, 10);
+    // Get the biggest mode possible (to handle big files)
+    int mode = currentMode;
+    uint32_t width = 0;
+    uint32_t height_gop = 0;
+    for(int i = 0; i < gop->Mode->MaxMode; i++){
+      status = gop->QueryMode(gop, i, &size_mode, &info);
+      if(EFI_ERROR(status)) continue;
+      mode = i; // Biggest mode.
+      width  = info->HorizontalResolution;
+      height_gop = info->VerticalResolution;
+    }
+    
+    // Set mode.
+    gop->SetMode(gop, mode);
+    
+    printf("UefiPPM v1\n");
+    printf("Framebuffer address is %d x %d (fmt: WxH)\n\n",
+      width, height_gop);
 
     fb_addr = gop->Mode->FrameBufferBase;
     ppsl = gop->Mode->Information->PixelsPerScanLine;
 
-    // Read Vro into memory
-    // Try and read the kernel
+    // Read PPM file into memory
     FILE* f; unsigned char* buff; long int size = 0;
 
-    /// First we need to obviously read the file
     if((f = fopen("image.ppm", "r"))){
-      // Get size
       fseek(f, 0, SEEK_END);
       size = ftell(f);
       fseek(f, 0, SEEK_SET);
 
-      // Then read into buff
       buff = malloc(size+1); // Allocate the size of our buffer
                             // in terms of memory.
       if(!buff){
@@ -72,7 +82,6 @@ int main(int argc, char **argv){
       printf("This EFI application only runs on PPM v6. Please make sure the image you load uses PPM v6.\n");
       for(;;);
     }
-    printf("UefiPPM v1\n\n");
     printf("Filesize: %ld bytes...\n", size);
 
 
@@ -106,14 +115,14 @@ int main(int argc, char **argv){
     }
 
 
-    int x = 0;
-    int y = 0;
-    for(int i = 0xf; i < size; i+=3){
-      uint8_t r = buff[i];
-      uint8_t g = buff[i+1];
-      uint8_t b = buff[i+2];
+    int x = 0; int y = 0;
 
-      uint32_t color =  (((r << 8) + g) << 8) + b;
+    // We start at the first pixel value.
+    uint32_t first_pixel_value = (2+1+width_digits+1+height_digits+1+4);
+    for(int i = first_pixel_value; i < size; i+=3){
+      // buff[i] is the red channel, buff[i+1] is the green channel,
+      // buff[i+2] is the blue channel.
+      uint32_t color =  (((buff[i] << 8) + buff[i+1]) << 8) + buff[i+2];
       putpixel(x, y, color);
 
       x++;
@@ -124,6 +133,6 @@ int main(int argc, char **argv){
     }
 
   } else fprintf(stderr, "unable to get graphics output protocol\n");
-  for(;;);
-  return 0;
+  for(;;); // Make sure the user can see what we're drawing, if we return
+           // we may boot into some actual operating system.
 }
