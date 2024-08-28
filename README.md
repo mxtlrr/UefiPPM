@@ -1,6 +1,9 @@
 # UefiPPM
 A small, bare metal, [PPM v6](https://netpbm.sourceforge.net/doc/ppm.html) parser as a UEFI app.
 
+# Screenshot
+![](./img/image1.png)
+
 # How to use
 ## Installing POSIX-UEFI
 ```sh
