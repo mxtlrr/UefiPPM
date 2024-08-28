@@ -1,6 +1,6 @@
 all:
 	make -C src/
-	cp src/helloworld.efi ./
+	cp src/BOOTX64.efi ./
 	bash makeiso.sh
 
 qemu:	runqemu.sh
