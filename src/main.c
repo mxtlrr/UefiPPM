@@ -1,5 +1,7 @@
 #include <uefi.h>
 
+#define MAXVAL_ALLOWED 65536
+
 uint64_t fb_addr = 0; uint32_t ppsl = 0;
 
 void putpixel(int x, int y, uint32_t pixel){
@@ -27,10 +29,9 @@ int main(int argc, char **argv){
       status = gop->SetMode(gop, 0);
     }
 
-    if(EFI_ERROR(status)) {
+    if(EFI_ERROR(status)){
       printf("can't set video mode!\n");
-      for(;;);
-    }
+      for(;;); }
 
     currentMode = gop->Mode->Mode;
 
@@ -82,7 +83,7 @@ int main(int argc, char **argv){
       printf("This EFI application only runs on PPM v6. Please make sure the image you load uses PPM v6.\n");
       for(;;);
     }
-    printf("Filesize: %ld bytes...\n", size);
+    printf("Filesize: %ld bytes.\n", size);
 
 
     // Width
@@ -114,6 +115,25 @@ int main(int argc, char **argv){
       for(;;);
     }
 
+    // The maximum color value.
+    // Must be less than 65536
+    uint8_t bytes_maxval[5]; // Each digit is one byte. 65535 (max number) makes 5 bytes.
+    uint32_t counter_maxval = 0;
+
+    // Super cursed but it works!:)
+    for(int i = 2+1+width_digits+1+height_digits+1; buff[i] != 0x0a; i++){
+      // Note that we do use 0x30 to convert it from ASCII to an actual number.
+      bytes_maxval[counter_maxval] = buff[i]-0x30;
+      counter_maxval++;
+    }
+
+    uint32_t maxval = sum_bytes(bytes_maxval, counter_maxval);
+    if(maxval > MAXVAL_ALLOWED){
+      printf("PPM spec only allows for Maxval to be %d! You have maxval=%d.\n",
+          MAXVAL_ALLOWED, maxval);
+      for(;;);
+    }
+    printf("Maximum color value: %d\n", maxval);
 
     int x = 0; int y = 0;
 
