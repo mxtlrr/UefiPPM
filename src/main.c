@@ -7,6 +7,12 @@ void putpixel(int x, int y, uint32_t pixel){
   *((uint32_t*)(fb_addr + 4 * ppsl * y + 4 * x)) = pixel;
 }
 
+uint32_t sum_bytes(uint8_t *bytes, size_t n) {
+  uint32_t sum = 0;
+  for (size_t i = 0; i < n; ++i) sum = sum*10 + bytes[i];
+  return sum;
+}
+
 int main(int argc, char **argv){
   efi_status_t status;
   efi_guid_t gopGuid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
@@ -56,21 +62,39 @@ int main(int argc, char **argv){
       fread(buff, size, 1, f);
       fclose(f);
     } else {
-      printf("Can't load Vro...:(\n");
+      printf("ERR! Cannot load file! Are you sure it's on the FS?\n");
       return 2;
     }
 
+    // Check if magic bytes are correct
     if(buff[0] != 0x50 || buff[1] != 0x36){
       printf("This EFI application only runs on PPM v6. Please make sure the image you load uses PPM v6.\n");
       return 2;
     }
+    printf("UefiPPM v1\n\n");
+    printf("Filesize: %ld bytes...\n", size);
 
     // Width
-    uint32_t widthh = 100*(buff[0x3]-0x30) + 10*(buff[0x4]-0x30) + (buff[0x5]-0x30);
-    uint32_t height = 100*(buff[0x7]-0x30) + 10*(buff[0x8]-0x30) + (buff[0x9]-0x30);
-    printf("Image dimensions: %d x %d\n", widthh, height);
+    int width_digits = 0;
+    for(int i = 3; buff[i] != 0x20; ++i) width_digits++;
+    uint8_t bytes[width_digits];
+    for(int i = 3; i != 3+width_digits; i++) bytes[i-3] = buff[i]-0x30;
+    
+    int height_digits = 0;
+    for(int i = 4+width_digits; buff[i] != 0x0a; ++i) height_digits++;
+    uint8_t bytes_height[height_digits];
+    uint8_t counter = 0;
+    for(int i = 3+width_digits+1; i != (3+width_digits+1)+height_digits; i++){
+      bytes_height[counter] = buff[i]-0x30;
+      counter++;
+    }
 
-    // Vro is now at buffer.
+    uint32_t widthh  = sum_bytes(bytes, width_digits);
+    uint32_t height  = sum_bytes(bytes_height, height_digits);
+
+    printf("File dimensions: %d by %d (px)\n", widthh, height);
+
+
     int x = 0;
     int y = 0;
     for(int i = 0xf; i < size; i+=3){
