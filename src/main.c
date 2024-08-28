@@ -30,9 +30,10 @@ int main(int argc, char **argv){
       ST->StdErr->Reset(ST->StdErr, 0);
     }
     if(EFI_ERROR(status)) {
-      printf("can't set video mode\n");
-      return 0;
+      printf("can't set video mode!\n");
+      for(;;);
     }
+
     currentMode = gop->Mode->Mode;
 
     // Set mode 10, 1280x760
@@ -57,22 +58,23 @@ int main(int argc, char **argv){
                             // in terms of memory.
       if(!buff){
         printf("Couldn't allocate memory to read file...\n");
-        return 1;
+        for(;;);
       }
       fread(buff, size, 1, f);
       fclose(f);
     } else {
       printf("ERR! Cannot load file! Are you sure it's on the FS?\n");
-      return 2;
+      for(;;);
     }
 
     // Check if magic bytes are correct
     if(buff[0] != 0x50 || buff[1] != 0x36){
       printf("This EFI application only runs on PPM v6. Please make sure the image you load uses PPM v6.\n");
-      return 2;
+      for(;;);
     }
     printf("UefiPPM v1\n\n");
     printf("Filesize: %ld bytes...\n", size);
+
 
     // Width
     int width_digits = 0;
@@ -89,10 +91,19 @@ int main(int argc, char **argv){
       counter++;
     }
 
-    uint32_t widthh  = sum_bytes(bytes, width_digits);
-    uint32_t height  = sum_bytes(bytes_height, height_digits);
+    uint64_t widthh  = sum_bytes(bytes, width_digits);
+    uint64_t height  = sum_bytes(bytes_height, height_digits);
 
     printf("File dimensions: %d by %d (px)\n", widthh, height);
+
+    if(widthh > gop->Mode->Information->HorizontalResolution ||
+      height  > gop->Mode->Information->VerticalResolution){
+      printf("Sorry, the image is too big for the framebuffer we set up.\n");
+      printf("Overflow (%d, %d) -> (width, height)\n",
+        widthh-(gop->Mode->Information->HorizontalResolution),
+        height-(gop->Mode->Information->VerticalResolution));
+      for(;;);
+    }
 
 
     int x = 0;
