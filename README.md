@@ -6,8 +6,35 @@ to be displayed.
 On QEMU, the app cannot display any images bigger than 2560 x 1600 pixels (4,096,000
 pixels).
 
-# Screenshot
+# Screenshot(s)
 <img src="./img/image.png">
+
+# Using UefiPPM in your project
+You don't need a UEFI environment to use UefiPPM. All you need:
+- `FILE*`, `fopen`/`fclose`
+- `malloc`/`free`
+- A working printf implementation (`%ld`, `%s`, `%d`, etc.)
+    - By extension `fprintf`
+- Some `putpixel` implementation that uses
+    - The framebuffer's VRam address
+    - Framebuffer's pixels per scanline
+
+Note that some code for UefiPPM will hang the system (the `for(;;);` bits).
+This is because, in the UEFI environment, returning from the UEFI app will
+either:
+1. Go back to the UEFI firmware
+2. Try and find another OS to boot (if it can't it'll go to 1)
+
+This'll make the error message not appear to the user. So, we hang the system.
+You may want to change the code to not do this, depending on the environment
+
+## Taking the code
+From line 61 to 153 is environment-agnostic code, as long as you have the stuff
+mentioned earlier, meaning you can use this in most environments.
+
+## Crediting
+Please credit me/link to this repo (since, you know, I developed UefiPPM)
+in your source code. Thanks:)
 
 # How to use
 ## Installing POSIX-UEFI
@@ -44,5 +71,4 @@ or
 This is so you don't have to guess on what's going on.
 
 # TODO
-1. Fully parse PPM file (missing maximum channel color value).
-2. Optimize width/height detection code.
+1. Optimize width/height detection code.
